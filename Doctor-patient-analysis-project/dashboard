@@ -1,0 +1,157 @@
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+from dash.dependencies import Input, Output
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objs as go
+from wordcloud import WordCloud
+import io
+import base64
+
+# Load your data
+df = pd.read_csv('filtered_columns.csv')
+df.columns = df.columns.str.strip()
+print(df.columns)
+
+# Initialize the Dash app
+app = dash.Dash(__name__)
+
+# Check if the necessary columns exist
+if 'symptoms' in df.columns and 'illness' in df.columns and 'Adherence' in df.columns:
+    # Explicitly filter out 'no keywords' from symptoms and illness
+    filtered_df = df[(df['symptoms'] != 'no keywords') & (df['illness'] != 'no keywords')]
+
+    # Symptom and illness counts after filtering
+    symptom_counts = filtered_df['symptoms'].value_counts()
+    illness_counts = filtered_df['illness'].value_counts()
+
+    # Sentiment distribution
+    sentiment_counts = df['predicted_conversation_sentiment'].value_counts()
+
+    # Age distribution
+    age_counts = df['age'].value_counts().sort_index()
+
+    # Adherence distribution
+    adherence_counts = df['Adherence'].value_counts()
+
+    # App Layout
+    app.layout = html.Div([
+        html.H1('Healthcare Conversation Dashboard'),
+
+        # Sentiment Analysis Section
+        html.Div([
+            html.H2('Sentiment Analysis Overview'),
+            dcc.Graph(
+                id='sentiment-distribution',
+                figure=px.pie(sentiment_counts, names=sentiment_counts.index, values=sentiment_counts.values, title="Sentiment Distribution")
+            ),
+        ]),
+
+        # Symptom and Illness Distribution
+        html.Div([
+            html.H2('Symptom and Illness Distribution'),
+            dcc.Graph(
+                id='symptom-counts',
+                figure=px.bar(symptom_counts, x=symptom_counts.index, y=symptom_counts.values, title="Symptoms Count")
+            ),
+            dcc.Graph(
+                id='illness-counts',
+                figure=px.bar(illness_counts, x=illness_counts.index, y=illness_counts.values, title="Illness Count")
+            ),
+        ]),
+
+        # Age Distribution
+        html.Div([
+            html.H2('Age Distribution'),
+            dcc.Graph(
+                id='age-distribution',
+                figure=px.bar(age_counts, x=age_counts.index, y=age_counts.values, title="Age Distribution of Patients")
+            ),
+        ]),
+
+        # Adherence Distribution
+        html.Div([
+            html.H2('Adherence Distribution'),
+            dcc.Graph(
+                id='adherence-distribution',
+                figure=px.bar(adherence_counts, x=adherence_counts.index, y=adherence_counts.values, title="Adherence Distribution")
+            ),
+        ]),
+
+        # Length Analysis
+        html.Div([
+            html.H2('Length Analysis'),
+            dcc.Graph(
+                id='length-analysis',
+                figure={
+                    'data': [
+                        go.Histogram(
+                            x=df['conversation_length'],
+                            name='Conversation Length',
+                            opacity=0.6
+                        ),
+                        go.Histogram(
+                            x=df['data_length'],
+                            name='Data Length',
+                            opacity=0.6
+                        )
+                    ],
+                    'layout': go.Layout(
+                        title='Conversation Length vs Data Length',
+                        barmode='overlay'
+                    )
+                }
+            ),
+        ]),
+
+        # Word Cloud for Conversations
+        html.Div([
+            html.H2('Word Cloud for Conversations'),
+            html.Div(id='wordcloud-conversations')
+        ]),
+
+        # Word Cloud for Doctor Sentences
+        html.Div([
+            html.H2('Word Cloud for Doctor Sentences'),
+            html.Div(id='wordcloud-doctor')
+        ]),
+
+        # Word Cloud for Patient Sentences
+        html.Div([
+            html.H2('Word Cloud for Patient Sentences'),
+            html.Div(id='wordcloud-patient')
+        ]),
+    ])
+
+    @app.callback(
+        Output('wordcloud-conversations', 'children'),
+        Output('wordcloud-doctor', 'children'),
+        Output('wordcloud-patient', 'children'),
+        Input('wordcloud-conversations', 'id')  # Just a trigger to generate word clouds
+    )
+    def update_wordclouds(_):
+        # Create Word Cloud for Conversations
+        wordcloud_conversations = WordCloud(width=800, height=400, background_color='white').generate(' '.join(df['conversation'].dropna()))
+        wordcloud_doctor = WordCloud(width=800, height=400, background_color='white').generate(' '.join(df['doctor_sentences'].dropna()))
+        wordcloud_patient = WordCloud(width=800, height=400, background_color='white').generate(' '.join(df['patient_sentences'].dropna()))
+
+        # Convert the WordCloud image to a base64 string
+        def wc_to_base64(wordcloud):
+            img = wordcloud.to_image()
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            return f'data:image/png;base64,{img_b64}'
+
+        # Return the WordClouds as images
+        return html.Img(src=wc_to_base64(wordcloud_conversations), style={'width': '100%', 'height': 'auto'}), \
+               html.Img(src=wc_to_base64(wordcloud_doctor), style={'width': '100%', 'height': 'auto'}), \
+               html.Img(src=wc_to_base64(wordcloud_patient), style={'width': '100%', 'height': 'auto'})
+
+    # Run the app
+    if __name__ == '__main__':
+        app.run_server(debug=True)
+
+else:
+    print("Columns 'symptoms', 'illness', or 'Adherence' not found in the dataset.")
