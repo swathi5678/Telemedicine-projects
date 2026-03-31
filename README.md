@@ -58,6 +58,8 @@ This platform was developed to bridge the gap between static epidemiological dat
    ```
 
 ---
+👉 [Cancer Risk Prediction Dashboard](https://dashboardpy-7cbmjdc6gzg5rjdhjl9ihj.streamlit.app/)
+---
 
 ## 🔬 Scientific Methodology
 
